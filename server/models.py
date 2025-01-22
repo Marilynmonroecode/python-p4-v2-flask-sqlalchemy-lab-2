@@ -3,15 +3,13 @@ from sqlalchemy import MetaData
 from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy_serializer import SerializerMixin
 
-
 metadata = MetaData(naming_convention={
     "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
 })
 
 db = SQLAlchemy(metadata=metadata)
 
-
-class Customer(db.Model):
+class Customer(db.Model, SerializerMixin):
     __tablename__ = 'customers'
 
     id = db.Column(db.Integer, primary_key=True)
@@ -20,8 +18,16 @@ class Customer(db.Model):
     def __repr__(self):
         return f'<Customer {self.id}, {self.name}>'
 
+    # Relationship to Review
+    reviews = db.relationship('Review', back_populates='customer')
 
-class Item(db.Model):
+    # Association Proxy to get items directly from reviews
+    items = association_proxy('reviews', 'item')
+
+    # Excluding reviews.customer to avoid recursion
+    serialize_rules = ('-reviews.customer',)
+
+class Item(db.Model, SerializerMixin):
     __tablename__ = 'items'
 
     id = db.Column(db.Integer, primary_key=True)
@@ -30,3 +36,27 @@ class Item(db.Model):
 
     def __repr__(self):
         return f'<Item {self.id}, {self.name}, {self.price}>'
+
+    # Relationship to Review
+    reviews = db.relationship('Review', back_populates='item')
+
+    # Excluding reviews.item to avoid recursion
+    serialize_rules = ('-reviews.item',)
+
+class Review(db.Model, SerializerMixin):
+    __tablename__ = 'reviews'
+
+    id = db.Column(db.Integer, primary_key=True)
+    comment = db.Column(db.String)
+    customer_id = db.Column(db.Integer, db.ForeignKey('customers.id'))
+    item_id = db.Column(db.Integer, db.ForeignKey('items.id'))
+
+    # Relationships to Customer and Item
+    customer = db.relationship('Customer', back_populates='reviews')
+    item = db.relationship('Item', back_populates='reviews')
+
+    def __repr__(self):
+        return f'<Review {self.id}, {self.comment}>'
+
+    # Excluding customer.reviews and item.reviews to avoid recursion
+    serialize_rules = ('-customer.reviews', '-item.reviews')
